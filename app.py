@@ -32,104 +32,70 @@ def calc_p_point(first_in, first_w, second_w, ret_first, ret_second):
     return first_in * p1 + (1.0 - first_in) * p2
 
 # --- 2. INTERFACCIA STREAMLIT ---
-st.title("🎾 Tennis Quant Model: Edge Finder")
-st.markdown("Modello probabilistico Markoviano per l'identificazione di valore nelle quote.")
+st.title("🎾 Tennis Quant: Google Sheets Edition")
+st.markdown("Inserisci il link del tuo foglio Google pubblicato come CSV per analizzare le partite in massa.")
 
 st.divider()
 
-# SEZIONE INPUT MANUALI
-st.subheader("⚙️ Modalità Match: Giocatore A vs Giocatore B")
-col1, col2 = st.columns(2)
+# SEZIONE LETTORE GOOGLE SHEETS
+url_sheet = st.text_input("Incolla qui il link CSV del tuo Google Sheet:", placeholder="https://docs.google.com/spreadsheets/.../pub?output=csv")
 
-with col1:
-    st.markdown("##### 🟦 Giocatore A (Al Servizio)")
-    a_first_in = st.number_input("Prima in campo (0-1)", 0.0, 1.0, 0.62, step=0.01, key="a_first_in")
-    a_first_w = st.number_input("Punti vinti con la prima", 0.0, 1.0, 0.75, step=0.01, key="a_first_w")
-    a_second_w = st.number_input("Punti vinti con la seconda", 0.0, 1.0, 0.50, step=0.01, key="a_second_w")
-    a_ret_first = st.number_input("Punti risposta A alla prima di B", 0.0, 1.0, 0.32, step=0.01, key="a_ret_first")
-    a_ret_second = st.number_input("Punti risposta A alla seconda di B", 0.0, 1.0, 0.50, step=0.01, key="a_ret_second")
-
-with col2:
-    st.markdown("##### 🟥 Giocatore B (Al Servizio)")
-    b_first_in = st.number_input("Prima in campo (0-1)", 0.0, 1.0, 0.60, step=0.01, key="b_first_in")
-    b_first_w = st.number_input("Punti vinti con la prima", 0.0, 1.0, 0.72, step=0.01, key="b_first_w")
-    b_second_w = st.number_input("Punti vinti con la seconda", 0.0, 1.0, 0.48, step=0.01, key="b_second_w")
-    b_ret_first = st.number_input("Punti risposta B alla prima di A", 0.0, 1.0, 0.30, step=0.01, key="b_ret_first")
-    b_ret_second = st.number_input("Punti risposta B alla seconda di A", 0.0, 1.0, 0.52, step=0.01, key="b_ret_second")
-
-# CALCOLI
-p_point_a = calc_p_point(a_first_in, a_first_w, a_second_w, b_ret_first, b_ret_second)
-p_hold_a = hold_probability(p_point_a)
-
-p_point_b = calc_p_point(b_first_in, b_first_w, b_second_w, a_ret_first, a_ret_second)
-p_hold_b = hold_probability(p_point_b)
+if url_sheet:
+    try:
+        # Carica i dati
+        df = pd.read_csv(url_sheet)
+        
+        # Controlla che le colonne siano giuste
+        required_cols = ['A_first_in', 'A_first_w', 'A_second_w', 'A_ret_first', 'A_ret_second', 
+                         'B_first_in', 'B_first_w', 'B_second_w', 'B_ret_first', 'B_ret_second', 'Quota_A', 'Quota_B']
+        
+        if not all(col in df.columns for col in required_cols):
+            st.error("Errore: Il foglio non ha le colonne corrette. Controlla le intestazioni.")
+        else:
+            st.success(f"✅ Foglio caricato! Trovate {len(df)} partite.")
+            
+            # Calcoli per ogni riga
+            results = []
+            for index, row in df.iterrows():
+                p_point_a = calc_p_point(row['A_first_in'], row['A_first_w'], row['A_second_w'], row['A_ret_first'], row['A_ret_second'])
+                p_hold_a = hold_probability(p_point_a)
+                
+                p_point_b = calc_p_point(row['B_first_in'], row['B_first_w'], row['B_second_w'], row['B_ret_first'], row['B_ret_second'])
+                p_hold_b = hold_probability(p_point_b)
+                
+                # Approssimazione Match Winner Best of 3
+                p_match_a = p_hold_a**2 * (3 - 2*p_hold_a) 
+                
+                # Calcolo Edge su Match Winner A
+                q_a = row['Quota_A']
+                q_b = row['Quota_B']
+                margine = (1/q_a) + (1/q_b)
+                prob_fair_a = (1/q_a) / margine
+                edge_a = p_match_a - prob_fair_a
+                
+                results.append({
+                    'Partita': f"Giocatore A vs B",
+                    'P(Hold) A': f"{p_hold_a:.1%}",
+                    'P(Hold) B': f"{p_hold_b:.1%}",
+                    'P(Match) A': f"{p_match_a:.1%}",
+                    'Quota Fair A': f"@{1/p_match_a:.3f}",
+                    'Quota Book A': f"@{q_a}",
+                    'EDGE %': f"{edge_a:.1%}",
+                    'Verdetto': "✅ VALUE" if edge_a > 0 else "❌ NO"
+                })
+            
+            # Mostra tabella
+            st.subheader(" Analisi Partite")
+            st.dataframe(pd.DataFrame(results), use_container_width=True)
+            
+            # Filtra solo le Value Bet
+            value_bets = [r for r in results if "VALUE" in r['Verdetto']]
+            if value_bets:
+                st.subheader("🔥 Value Bet Trovate")
+                st.dataframe(pd.DataFrame(value_bets), use_container_width=True)
+                
+    except Exception as e:
+        st.error(f"Errore nel caricamento del foglio: {e}")
 
 st.divider()
-
-# SEZIONE RISULTATI
-st.subheader("📊 Risultati del Modello")
-res_col1, res_col2, res_col3 = st.columns(3)
-
-with res_col1:
-    st.metric("P(Point) Giocatore A", f"{p_point_a:.1%}")
-    st.metric("P(Hold) Giocatore A", f"{p_hold_a:.1%}")
-    st.metric("Quota Fair Hold A", f"@{1/p_hold_a:.3f}")
-
-with res_col2:
-    st.metric("P(Point) Giocatore B", f"{p_point_b:.1%}")
-    st.metric("P(Hold) Giocatore B", f"{p_hold_b:.1%}")
-    st.metric("Quota Fair Hold B", f"@{1/p_hold_b:.3f}")
-
-with res_col3:
-    p_set_a = p_hold_a**2 * (3 - 2*p_hold_a) # Approssimazione Best of 3 semplificata
-    p_set_b = 1 - p_set_a
-    st.metric("P(Vittoria Match) A", f"{p_set_a:.1%}")
-    st.metric("P(Vittoria Match) B", f"{p_set_b:.1%}")
-    st.metric("Quota Fair Match A", f"@{1/p_set_a:.3f}")
-
-st.divider()
-
-# SEZIONE EDGE CALCULATOR
-st.subheader("💰 Calcolatore Edge vs Bookmaker")
-edge_col1, edge_col2 = st.columns(2)
-
-with edge_col1:
-    st.markdown("##### Giocatore A (Match Winner)")
-    q_book_a = st.number_input("Quota Bookmaker A", 1.01, 10.0, 1.65, step=0.01, key="q_book_a")
-    prob_impl_a = 1 / q_book_a
-    # No-vig semplificato su 2 vie
-    q_book_b_temp = st.number_input("Quota Bookmaker B (per no-vig)", 1.01, 10.0, 2.35, step=0.01, key="q_book_b_temp")
-    margine = (1/q_book_a) + (1/q_book_b_temp)
-    prob_fair_a = prob_impl_a / margine
-    edge_a = p_set_a - prob_fair_a
-    ev_a = (p_set_a * (q_book_a - 1)) - (1 - p_set_a)
-    
-    st.write(f"Prob. Fair (No-Vig): **{prob_fair_a:.1%}**")
-    st.write(f"Edge: **{edge_a:.1%}**")
-    if edge_a > 0:
-        st.success(f"✅ VALUE BET (EV: {ev_a:.1%})")
-    else:
-        st.error("❌ NO VALUE")
-
-with edge_col2:
-    st.markdown("##### Total Games Over/Under")
-    line_games = st.number_input("Linea Games", 10.5, 30.5, 21.5, step=1.0, key="line_games")
-    q_book_over = st.number_input("Quota Bookmaker Over", 1.01, 10.0, 1.50, step=0.01, key="q_book_over")
-    q_book_under = st.number_input("Quota Bookmaker Under", 1.01, 10.0, 2.60, step=0.01, key="q_book_under")
-    
-    # Simulazione semplificata prob over (in un modello reale verrebbe dalla convoluzione delle distribuzioni)
-    # Qui usiamo un'euristica basata sul differenziale di hold per demo
-    prob_model_over = 0.65 if (p_hold_a + p_hold_b) > 1.55 else 0.45 
-    
-    margine_games = (1/q_book_over) + (1/q_book_under)
-    prob_fair_over = (1/q_book_over) / margine_games
-    edge_over = prob_model_over - prob_fair_over
-    ev_over = (prob_model_over * (q_book_over - 1)) - (1 - prob_model_over)
-    
-    st.write(f"Prob. Fair Over (No-Vig): **{prob_fair_over:.1%}**")
-    st.write(f"Prob. Modello Over (Stima): **{prob_model_over:.1%}**")
-    st.write(f"Edge: **{edge_over:.1%}**")
-    if edge_over > 0:
-        st.success(f"✅ VALUE BET (EV: {ev_over:.1%})")
-    else:
-        st.error("❌ NO VALUE")
+st.caption("Sviluppato con modello Markoviano punto-per-punto.")

@@ -60,7 +60,10 @@ if url_sheet:
                 p_point_b = calc_p_point(row['B_first_in'], row['B_first_w'], row['B_second_w'], row['B_ret_first'], row['B_ret_second'])
                 p_hold_b = hold_probability(p_point_b)
                 
-                p_match_a = p_hold_a**2 * (3 - 2*p_hold_a) 
+                   # Probabilità media che A vinca un game (servizio proprio + risposta)
+   p_game_A = (p_hold_a + (1 - p_hold_b)) / 2
+   # Match best-of-3 (approssimazione)
+   p_match_a = p_game_A**2 * (3 - 2*p_game_A) 
                 
                 q_a = float(row['Quota_A'])
                 q_b = float(row['Quota_B'])

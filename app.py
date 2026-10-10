@@ -73,4 +73,72 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("Giocatore A")
     text_a = st.text_area("Incolla qui la riga delle statistiche (es. Clay ...)", height=100, key="text_a")
-    elo_a = st.number_input("Elo Generico A", min_value=
+    elo_a = st.number_input("Elo Generico A", min_value=1000, max_value=2500, value=1500, step=1, key="elo_a")
+    q_a = st.number_input("Quota Book A", 1.01, 10.0, 1.64, step=0.01, key="q_a")
+    q_pin_a = st.number_input("Quota Pinnacle A", 1.01, 10.0, 1.68, step=0.01, key="q_pin_a")
+
+with col2:
+    st.subheader("Giocatore B")
+    text_b = st.text_area("Incolla qui la riga delle statistiche (es. Clay ...)", height=100, key="text_b")
+    elo_b = st.number_input("Elo Generico B", min_value=1000, max_value=2500, value=1500, step=1, key="elo_b")
+    q_b = st.number_input("Quota Book B", 1.01, 10.0, 2.12, step=0.01, key="q_b")
+    q_pin_b = st.number_input("Quota Pinnacle B", 1.01, 10.0, 2.27, step=0.01, key="q_pin_b")
+
+if st.button("🚀 Calcola Edge", type="primary"):
+    if text_a and text_b:
+        data_a = parse_ta_stats(text_a)
+        data_b = parse_ta_stats(text_b)
+        
+        if data_a and data_b:
+            st.info(f"✅ **Dati A letti**: 1stIn: {data_a['1stIn']:.1%} | 1stW: {data_a['1stW']:.1%} | 2ndW: {data_a['2ndW']:.1%} | RPW: {data_a['RPW']:.1%}")
+            st.info(f"✅ **Dati B letti**: 1stIn: {data_b['1stIn']:.1%} | 1stW: {data_b['1stW']:.1%} | 2ndW: {data_b['2ndW']:.1%} | RPW: {data_b['RPW']:.1%}")
+            
+            # 1. Calcolo Markoviano (basato sulle stats incollate)
+            p_point_a = calc_p_point(data_a['1stIn'], data_a['1stW'], data_a['2ndW'], data_a['ret_first'], data_a['ret_second'])
+            p_hold_a = hold_probability(p_point_a)
+            
+            p_point_b = calc_p_point(data_b['1stIn'], data_b['1stW'], data_b['2ndW'], data_b['ret_first'], data_b['ret_second'])
+            p_hold_b = hold_probability(p_point_b)
+            
+            p_game_A = (p_hold_a + (1 - p_hold_b)) / 2
+            p_markov_A = p_game_A**2 * (3 - 2 * p_game_A)
+            
+            # 2. Calcolo probabilità basata sull'Elo (Formula standard)
+            elo_diff = elo_a - elo_b
+            p_elo_A = 1.0 / (1.0 + 10.0 ** (-elo_diff / 400.0))
+            
+            # 3. Fusione Ibrida: 60% Statistiche di gioco, 40% Forza reale (Elo)
+            p_final_A = (p_markov_A * 0.60) + (p_elo_A * 0.40)
+            
+            # 4. Calcolo Edge
+            margine_book = (1/q_a) + (1/q_b)
+            prob_fair_book_a = (1/q_a) / margine_book
+            edge_book = p_final_A - prob_fair_book_a
+            
+            margine_pin = (1/q_pin_a) + (1/q_pin_b)
+            prob_fair_pin_a = (1/q_pin_a) / margine_pin
+            edge_pin = p_final_A - prob_fair_pin_a
+            
+            # Visualizzazione
+            st.divider()
+            st.subheader(" Risultati Modello Ibrido")
+            
+            res_col1, res_col2, res_col3, res_col4 = st.columns(4)
+            res_col1.metric("Prob. Finale A", f"{p_final_A:.1%}", f"(Stats: {p_markov_A:.1%} | Elo: {p_elo_A:.1%})")
+            res_col2.metric("Quota Fair", f"@{1/p_final_A:.2f}")
+            res_col3.metric("Edge vs TUO BOOK", f"{edge_book*100:+.1f}%")
+            res_col4.metric("Edge vs PINNACLE", f"{edge_pin*100:+.1f}%")
+            
+            if edge_book > 0.05 and abs(edge_pin) < 0.08:
+                st.success("🔥 VALORE REALE: Il modello e Pinnacle sono allineati, il tuo book è in ritardo. Scommetti.")
+            elif edge_book > 0.05 and abs(edge_pin) >= 0.08:
+                st.warning("⚠️ TRAPPOLA DI VALORE: Il tuo book offre una quota alta, ma Pinnacle (e l'Elo) sanno che è rischioso. Evita.")
+            else:
+                st.error("❌ NESSUN VALORE: La quota non offre edge matematico.")
+        else:
+            st.error("Impossibile leggere le statistiche. Assicurati di copiare l'intera riga 'Clay' dalla tabella Splits di Tennis Abstract.")
+    else:
+        st.warning("Incolla i dati e inserisci l'Elo di entrambi i giocatori.")
+
+st.divider()
+st.caption("Modello Ibrido: 60% Markov (Serve/Return) + 40% Elo (Forza reale).")

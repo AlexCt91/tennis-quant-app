@@ -33,24 +33,17 @@ def calc_p_point(first_in, first_w, second_w, ret_first, ret_second):
 
 # --- 2. INTERFACCIA STREAMLIT ---
 st.title("🎾 Tennis Quant: Google Sheets Edition")
-st.markdown("Inserisci il link del tuo foglio Google pubblicato come CSV per analizzare le partite in massa.")
+st.markdown("Modello probabilistico Markoviano per l'identificazione di valore nelle quote.")
 
 st.divider()
 
-# SEZIONE LETTORE GOOGLE SHEETS
+# SEZIONE LETTORE GOOGLE SHEETS (Link già inserito)
 url_sheet = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTYgWgfwyK8mNBgoG8LEUALbEwjHH7UOCrapR4JNgbi5C1h0xT10i4eICW7FqU6R32EzFwIwyLjFMrl/pub?output=csv"
 
 if url_sheet:
     try:
-        # Carica i dati
-        df = pd.read_csv(url_sheet)
-
-if url_sheet:
-    try:
-        # Carica i dati
         df = pd.read_csv(url_sheet)
         
-        # Controlla che le colonne siano giuste
         required_cols = ['A_first_in', 'A_first_w', 'A_second_w', 'A_ret_first', 'A_ret_second', 
                          'B_first_in', 'B_first_w', 'B_second_w', 'B_ret_first', 'B_ret_second', 'Quota_A', 'Quota_B']
         
@@ -59,7 +52,6 @@ if url_sheet:
         else:
             st.success(f"✅ Foglio caricato! Trovate {len(df)} partite.")
             
-            # Calcoli per ogni riga
             results = []
             for index, row in df.iterrows():
                 p_point_a = calc_p_point(row['A_first_in'], row['A_first_w'], row['A_second_w'], row['A_ret_first'], row['A_ret_second'])
@@ -68,18 +60,16 @@ if url_sheet:
                 p_point_b = calc_p_point(row['B_first_in'], row['B_first_w'], row['B_second_w'], row['B_ret_first'], row['B_ret_second'])
                 p_hold_b = hold_probability(p_point_b)
                 
-                # Approssimazione Match Winner Best of 3
                 p_match_a = p_hold_a**2 * (3 - 2*p_hold_a) 
                 
-                # Calcolo Edge su Match Winner A
-                q_a = row['Quota_A']
-                q_b = row['Quota_B']
+                q_a = float(row['Quota_A'])
+                q_b = float(row['Quota_B'])
                 margine = (1/q_a) + (1/q_b)
                 prob_fair_a = (1/q_a) / margine
                 edge_a = p_match_a - prob_fair_a
                 
                 results.append({
-                    'Partita': f"Giocatore A vs B",
+                    'Partita': "Giocatore A vs B",
                     'P(Hold) A': f"{p_hold_a:.1%}",
                     'P(Hold) B': f"{p_hold_b:.1%}",
                     'P(Match) A': f"{p_match_a:.1%}",
@@ -89,11 +79,9 @@ if url_sheet:
                     'Verdetto': "✅ VALUE" if edge_a > 0 else "❌ NO"
                 })
             
-            # Mostra tabella
-            st.subheader(" Analisi Partite")
+            st.subheader("📊 Analisi Partite")
             st.dataframe(pd.DataFrame(results), use_container_width=True)
             
-            # Filtra solo le Value Bet
             value_bets = [r for r in results if "VALUE" in r['Verdetto']]
             if value_bets:
                 st.subheader("🔥 Value Bet Trovate")

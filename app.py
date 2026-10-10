@@ -38,7 +38,12 @@ st.markdown("Inserisci il link del tuo foglio Google pubblicato come CSV per ana
 st.divider()
 
 # SEZIONE LETTORE GOOGLE SHEETS
-   url_sheet = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTYgWgfwyK8mNBgoG8LEUALbEwjHH7UOCrapR4JNgbi5C1h0xT10i4eICW7FqU6R32EzFwIwyLjFMrl/pub?output=csv"
+url_sheet = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTYgWgfwyK8mNBgoG8LEUALbEwjHH7UOCrapR4JNgbi5C1h0xT10i4eICW7FqU6R32EzFwIwyLjFMrl/pub?output=csv"
+
+if url_sheet:
+    try:
+        # Carica i dati
+        df = pd.read_csv(url_sheet)
 
 if url_sheet:
     try:

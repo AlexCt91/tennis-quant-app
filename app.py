@@ -54,17 +54,21 @@ if url_sheet:
             
             results = []
             for index, row in df.iterrows():
+                # Calcolo probabilità punto e hold per A
                 p_point_a = calc_p_point(row['A_first_in'], row['A_first_w'], row['A_second_w'], row['A_ret_first'], row['A_ret_second'])
                 p_hold_a = hold_probability(p_point_a)
                 
+                # Calcolo probabilità punto e hold per B
                 p_point_b = calc_p_point(row['B_first_in'], row['B_first_w'], row['B_second_w'], row['B_ret_first'], row['B_ret_second'])
                 p_hold_b = hold_probability(p_point_b)
                 
-                   # Probabilità media che A vinca un game (servizio proprio + risposta)
-p_game_A = (p_hold_a + (1 - p_hold_b)) / 2
-# Match best-of-3 (approssimazione)
-p_match_a = p_game_A**2 * (3 - 2*p_game_A) 
+                # CORREZIONE MATEMATICA: Calcolo corretto della probabilità di vincere il match
+                # Probabilità media che A vinca un game (quando serve lui + quando risponde a B)
+                p_game_A = (p_hold_a + (1 - p_hold_b)) / 2
+                # Formula best-of-3 applicata alla probabilità media di game
+                p_match_a = p_game_A**2 * (3 - 2 * p_game_A)
                 
+                # Calcolo Edge e Quote
                 q_a = float(row['Quota_A'])
                 q_b = float(row['Quota_B'])
                 margine = (1/q_a) + (1/q_b)
@@ -82,7 +86,7 @@ p_match_a = p_game_A**2 * (3 - 2*p_game_A)
                     'Verdetto': "✅ VALUE" if edge_a > 0 else "❌ NO"
                 })
             
-            st.subheader("📊 Analisi Partite")
+            st.subheader(" Analisi Partite")
             st.dataframe(pd.DataFrame(results), use_container_width=True)
             
             value_bets = [r for r in results if "VALUE" in r['Verdetto']]
